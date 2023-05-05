@@ -1,0 +1,60 @@
+#include <Adafruit_ADS1X15.h>
+#include <Wire.h>
+#define ADS1X15_ADDRESS1 0x48  // I2C address for first ADS1115
+#define ADS1X15_ADDRESS2 0x49  // I2C address for second ADS1115
+
+Adafruit_ADS1115 ads1;  // Create an instance of the first ADS1115
+Adafruit_ADS1115 ads2;  // Create an instance of the second ADS1115
+
+float voltage1_buck1 = 0.0; // used to store voltage value
+float voltage2_buck1 = 0.0; // used to store voltage value
+float current1_buck1 = 0.0; // used to store voltage value
+float current2_buck1 = 0.0; // used to store voltage value
+
+float voltage1_buck2 = 0.0; // used to store voltage value
+float voltage2_buck2 = 0.0; // used to store voltage value
+float current1_buck2 = 0.0; // used to store voltage value
+float current2_buck2 = 0.0; // used to store voltage value
+
+void setup(void) {
+  Serial.begin(115200);
+  ads1.begin(0x48);
+  ads2.begin(0x49); 
+}
+
+void loop(void) {
+
+  int16_t adc0_1,adc0_2,adc1_1,adc1_2,adc2_1,adc2_2,adc3_1,adc3_2; // 16 bits ADC read of input A0
+  
+  adc0_1 = ads1.readADC_SingleEnded(0);
+  adc1_1 = ads1.readADC_SingleEnded(1);
+  adc2_1 = ads1.readADC_SingleEnded(2);
+  adc3_1 = ads1.readADC_SingleEnded(3);
+  voltage1_buck1 = adc0_1*25.0/16835.0;
+  voltage2_buck1 = adc1_1*25.0/16835.0;
+  current1_buck1= (13243-adc2_1)/529.1;
+  current2_buck1= (13243-adc3_1)/529.1;
+  Serial.print("Nilai ADC1 ");
+  Serial.print(adc0_1);
+  Serial.print(" ,Nilai Tegangan1 = ");
+  Serial.print(voltage1_buck1, 3); // Menampilkan 2 angka di belakang koma
+  Serial.println(" Volt");
+ 
+ delay (1000);
+ 
+  adc0_2 = ads2.readADC_SingleEnded(0);
+  adc1_2 = ads2.readADC_SingleEnded(1);
+  adc2_2 = ads2.readADC_SingleEnded(2);
+  adc3_2 = ads2.readADC_SingleEnded(3);
+  voltage1_buck2 = adc0_2*25.0/16835.0;
+  voltage2_buck2= adc1_2*25.0/16835.0;
+  current1_buck2= (13243-adc2_2)/529.1;
+  current2_buck2= (13243-adc3_2)/529.1;
+  Serial.print("Nilai ADC2 ");
+  Serial.print(adc0_2);
+  Serial.print(" ,Nilai Tegangan2 = ");
+  Serial.print(voltage1_buck2, 3); // Menampilkan 2 angka di belakang koma
+  Serial.println(" Volt");
+
+ delay (1000);
+}
