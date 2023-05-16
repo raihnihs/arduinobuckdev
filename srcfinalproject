@@ -6,15 +6,43 @@
 Adafruit_ADS1115 ads1;  // Create an instance of the first ADS1115
 Adafruit_ADS1115 ads2;  // Create an instance of the second ADS1115
 
+// function untuk sensor voltage
+float voltageBuck(int adsAddress,int adcPin){
+    float voltageOutput=0.0;
+    float result=0.0;
+    if(adsAddress==1){
+      voltageOutput=ads1.readADC_SingleEnded(adcPin);
+      }
+    else if(adsAddress==2){
+      voltageOutput=ads2.readADC_SingleEnded(adcPin);
+      }
+    result=voltageOutput*25.0/16835.0;
+    return result;
+}
+
+//function untuk sensor arus
+float currentBuck(int adscAddress, int adccPin){
+    float currentOutput=0.0;
+    float resultc=0.0;
+    if(adscAddress==1){
+      currentOutput=ads1.readADC_SingleEnded(adccPin);
+      }
+    else if(adscAddress==2){
+      currentOutput=ads2.readADC_SingleEnded(adccPin);
+      }
+    resultc= (13243-currentOutput)/529.1;
+    return resultc;
+}
+
 float voltage1_buck1 = 0.0; // used to store voltage value
 float voltage2_buck1 = 0.0; // used to store voltage value
-float current1_buck1 = 0.0; // used to store voltage value
-float current2_buck1 = 0.0; // used to store voltage value
+float current1_buck1 = 0.0; // used to store current value
+float current2_buck1 = 0.0; // used to store current value
 
 float voltage1_buck2 = 0.0; // used to store voltage value
 float voltage2_buck2 = 0.0; // used to store voltage value
-float current1_buck2 = 0.0; // used to store voltage value
-float current2_buck2 = 0.0; // used to store voltage value
+float current1_buck2 = 0.0; // used to store current value
+float current2_buck2 = 0.0; // used to store current value
 
 void setup(void) {
   Serial.begin(115200);
@@ -23,37 +51,22 @@ void setup(void) {
 }
 
 void loop(void) {
-
-  int16_t adc0_1,adc0_2,adc1_1,adc1_2,adc2_1,adc2_2,adc3_1,adc3_2; // 16 bits ADC read of input A0
-  
-  adc0_1 = ads1.readADC_SingleEnded(0);
-  adc1_1 = ads1.readADC_SingleEnded(1);
-  adc2_1 = ads1.readADC_SingleEnded(2);
-  adc3_1 = ads1.readADC_SingleEnded(3);
-  voltage1_buck1 = adc0_1*25.0/16835.0;
-  voltage2_buck1 = adc1_1*25.0/16835.0;
-  current1_buck1= (13243-adc2_1)/529.1;
-  current2_buck1= (13243-adc3_1)/529.1;
-  Serial.print("Nilai ADC1 ");
-  Serial.print(adc0_1);
-  Serial.print(" ,Nilai Tegangan1 = ");
-  Serial.print(voltage1_buck1, 3); // Menampilkan 2 angka di belakang koma
+  voltage1_buck1=voltageBuck(1,0);
+  voltage2_buck1=voltageBuck(1,1);
+  current1_buck1=currentBuck(1,2);
+  current2_buck1=currentBuck(1,3);
+  Serial.print("Nilai Tegangan1 = ");
+  Serial.print(voltage1_buck1, 3); // Menampilkan 3 angka di belakang koma
   Serial.println(" Volt");
  
  delay (1000);
  
-  adc0_2 = ads2.readADC_SingleEnded(0);
-  adc1_2 = ads2.readADC_SingleEnded(1);
-  adc2_2 = ads2.readADC_SingleEnded(2);
-  adc3_2 = ads2.readADC_SingleEnded(3);
-  voltage1_buck2 = adc0_2*25.0/16835.0;
-  voltage2_buck2= adc1_2*25.0/16835.0;
-  current1_buck2= (13243-adc2_2)/529.1;
-  current2_buck2= (13243-adc3_2)/529.1;
-  Serial.print("Nilai ADC2 ");
-  Serial.print(adc0_2);
-  Serial.print(" ,Nilai Tegangan2 = ");
-  Serial.print(voltage1_buck2, 3); // Menampilkan 2 angka di belakang koma
+  voltage1_buck2=voltageBuck(2,0);
+  voltage2_buck2=voltageBuck(2,1);
+  current1_buck2=currentBuck(2,2);
+  current2_buck2=currentBuck(2,3);
+  Serial.print("Nilai Tegangan2 = ");
+  Serial.print(voltage1_buck2, 3); // Menampilkan 3 angka di belakang koma
   Serial.println(" Volt");
 
  delay (1000);
