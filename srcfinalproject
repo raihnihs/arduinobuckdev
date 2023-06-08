@@ -1,38 +1,40 @@
+
 #include <Adafruit_ADS1X15.h>
 #include <Wire.h>
+
 #define ADS1X15_ADDRESS1 0x48  // I2C address for first ADS1115
 #define ADS1X15_ADDRESS2 0x49  // I2C address for second ADS1115
 
 Adafruit_ADS1115 ads1;  // Create an instance of the first ADS1115
 Adafruit_ADS1115 ads2;  // Create an instance of the second ADS1115
 
-// function untuk sensor voltage
-float voltageBuck(int adsAddress,int adcPin){
-    float voltageOutput=0.0;
-    float result=0.0;
-    if(adsAddress==1){
-      voltageOutput=ads1.readADC_SingleEnded(adcPin);
-      }
-    else if(adsAddress==2){
-      voltageOutput=ads2.readADC_SingleEnded(adcPin);
-      }
-    result=voltageOutput*25.0/16835.0;
-    return result;
-}
 
-//function untuk sensor arus
-float currentBuck(int adscAddress, int adccPin){
-    float currentOutput=0.0;
-    float resultc=0.0;
-    if(adscAddress==1){
-      currentOutput=ads1.readADC_SingleEnded(adccPin);
-      }
-    else if(adscAddress==2){
-      currentOutput=ads2.readADC_SingleEnded(adccPin);
-      }
-    resultc= (13243-currentOutput)/529.1;
-    return resultc;
-}
+float voltErr;
+float temp;
+
+float discascescos;
+float currErr=0.0;
+float currThreshold=5;
+float dischargePwmVal=50;
+
+float cascescos=0.0;
+float revisipwm=0.0;
+
+float chargePwmVal1=0.0,chargePwmVal0=0.0;
+
+float vin[5];
+float err[5];
+float rule[5][5];
+float rule00, rule01, rule02, rule03, rule04;
+float rule10, rule11, rule12, rule13, rule14;
+float rule20, rule21, rule22, rule23, rule24;
+float rule30, rule31, rule32, rule33, rule34;
+float rule40, rule41, rule42, rule43, rule44;
+float ruleA0, ruleA1, ruleA2, ruleA3, ruleA4;
+float ruleB0, ruleB1, ruleB2, ruleB3, ruleB4;
+float ruleC0, ruleC1, ruleC2, ruleC3, ruleC4;
+float ruleD0, ruleD1, ruleD2, ruleD3, ruleD4;
+float ruleE0, ruleE1, ruleE2, ruleE3, ruleE4;
 
 float voltage1_buck1 = 0.0; // used to store voltage value
 float voltage2_buck1 = 0.0; // used to store voltage value
@@ -41,33 +43,329 @@ float current2_buck1 = 0.0; // used to store current value
 
 float voltage1_buck2 = 0.0; // used to store voltage value
 float voltage2_buck2 = 0.0; // used to store voltage value
-float current1_buck2 = 0.0; // used to store current value
 float current2_buck2 = 0.0; // used to store current value
+
+float soc = 0.0;
+float voltagesoc=0.0;
+
+const int chargePin = 25;          // pin output PWM pertama
+const int dischargePin = 26;       // pin output PWM kedua
+const int pwmFrequency = 25000;    // frekuensi PWM (dalam Hz)
+int dischargePwmValue=0;       // duty cycle pin kedua
+
+const int chargeRel = 14;
+const int dischargeRel = 27;
+
+float powerVal=0.0;
+
+
+void Error(){
+  // test
+  voltErr=(14.0-voltage2_buck1)/14.0;
+}
+
+void fuzzyErr(){
+  //untukN
+   if(voltErr<=-1.0){
+    err[0]=1.0;
+   }
+   else if(voltErr>-1.0&&voltErr<=-0.5){
+    err[0]=((-0.5)-voltErr)/((-0.5)-(-1));
+   } //menggunakan rumus turun
+   else{
+    err[0]=0.0;
+   }
+    
+   //untukNS
+   if(voltErr>-1.0&&voltErr<=-0.5){
+    err[1]=(voltErr-(-1.0))/((-0.5)-(-1.0));
+   } //menggunakan rumus naik
+   else if(voltErr>-0.5&&voltErr<=0.0){
+    err[1]=((0.0)-voltErr)/((0.0)-(-0.5));
+   } //menggunakan rumus turun
+   else{
+    err[1]=0.0;
+   }
+    
+   //untukZ
+   if(voltErr>-1.0&&voltErr<=-0.5){
+    err[2]=0.0;
+   }
+   else if(voltErr>-0.5&&voltErr<=0){
+    err[2]=(voltErr-(-0.5))/((0)-(-0.5));
+   } //menggunakan rumus naik
+   else if(voltErr>0&&voltErr<=0.5){
+    err[2]=((0.5)-voltErr)/((0.5)-(0));
+   } //menggunakan rumus turun
+   else{
+    err[2]=0.0;
+   }
+    
+   //untukPS
+   if(voltErr>0.0&&voltErr<=0.5){
+    err[3]=(voltErr-(0))/((0.5)-(0));
+   } //menggunakan rumus naik
+   else if(voltErr>0.5&&voltErr<=1){
+    err[3]=((1)-voltErr)/((1)-(0.5));
+   } //menggunakan rumus turun
+   else{
+    err[3]=0;
+   }
+    
+   //untukP
+   if(voltErr>0.5&&voltErr<=1.0){
+    err[4]=(voltErr-(0.5))/((1.0)-(0.5));
+   } //menggunakan rumus naik
+   else if(voltErr>=1.0){
+    err[4]=1.0;
+   }
+   else{
+    err[4]=0;
+   }
+  }
+
+void fuzzyVin(){
+   //untukN
+   if(voltage1_buck1<=15.0){
+    vin[0]=1.0;
+   }
+   else if(voltage1_buck1>15.0&&voltage1_buck1<=16.25){
+    vin[0]=(16.25-voltage1_buck1)/(16.25-15.0);
+   } //menggunakan rumus turun
+   else{
+    vin[0]=0.0;
+   }
+    
+   //untukNS
+   if(voltage1_buck1>15.0&&voltage1_buck1<=16.25){
+    vin[1]=(voltage1_buck1-15.0)/(16.25-15.0);
+   } //menggunakan rumus naik
+   else if(voltage1_buck1>16.25&&voltage1_buck1<=17.5){
+    vin[1]=(17.5-voltage1_buck1)/(17.5-16.25);
+   } //menggunakan rumus turun
+   else{
+    vin[1]=0.0;
+   }
+    
+   //untukZ
+   if(voltage1_buck1>16.25&&voltage1_buck1<=17.5){
+    vin[2]=0.0;
+   }
+   else if(voltage1_buck1>17.5&&voltage1_buck1<=18.75){
+    vin[2]=(voltage1_buck1-17.5)/(18.75-17.5);
+   } //menggunakan rumus naik
+   else if(voltage2_buck1>18.75){
+    vin[2]=0.0;
+   }
+    
+   //untukPS
+   if(voltage1_buck1>17.5&&voltage1_buck1<=18.75){
+    vin[3]=(voltage1_buck1-17.5)/(18.75-17.5);
+   } //menggunakan rumus naik
+   else if(voltage1_buck1>18.75&&voltage1_buck1<=20.0){
+    vin[3]=(20.0-voltage1_buck1)/(20.0-18.75);
+   } //menggunakan rumus turun
+   else{
+    vin[3]=0;
+   }
+    
+   //untukP
+   if(voltage1_buck1>18.75&&voltage1_buck1<=20.0){
+    vin[4]=(voltage1_buck1-18.75)/(20.0-18.75);
+   } //menggunakan rumus naik
+   else if(voltage1_buck1>=20.0){
+    vin[4]=1.0;
+   }
+   else{
+    vin[4]=0;
+   }
+  }
+
+
+void ruleBase(){
+  //test
+  int i,j;
+  for (i=0;i<=4;i++)
+  { for (j=0;j<=4;j++)
+  { temp = min(err[i],vin[j]);
+  rule [i][j] = temp;}
+  }
+  rule00 = rule [0][0];//(errNB,VinNB=DutyPB)
+  rule01 = rule [0][1];//(errNB,VinNS=DutyPS)
+  rule02 = rule [0][2];//(errNB,VinZ=DutyZ)
+  rule03 = rule [0][3];//(errNB,VinPS=DutyNS)
+  rule04 = rule [0][4];//(errNB,VinPB=DutyNB)
+  rule10 = rule [1][0];//(errNS,VinNB=DutyPB)
+  rule11 = rule [1][1];//(errNS,VinNS=DutyPS)
+  rule12 = rule [1][2];//(errNS,VinZ=DutyZ)
+  rule13 = rule [1][3];//(errNS,VinPS=DutyNS)
+  rule14 = rule [1][4];//(errNS,VinPB=DutyNB)
+  rule20 = rule [2][0];//(errZ,VinNB=DutyPB)
+  rule21 = rule [2][1];//(errZ,VinNS=DutyPS)
+  rule22 = rule [2][2];//(errZ,VinZ=DutyZ)
+  rule23 = rule [2][3];//(errZ,VinPS=DutyNS)
+  rule24 = rule [2][4];//(errZ,VinPB=DutyNB)
+  rule30 = rule [3][0];//(errPS,VinNB=DutyPB)
+  rule31 = rule [3][1];//(errPS,VinNS=DutyPS)
+  rule32 = rule [3][2];//(errPS,VinZ=DutyZ)
+  rule33 = rule [3][3];//(errPS,VinPS=DutyNS)
+  rule34 = rule [3][4];//(errPS,VinPB=DutyNB)
+  rule40 = rule [4][0];//(errPB,VinNB=DutyPB)
+  rule41 = rule [4][1];//(errPB,VinNS=DutyPS)
+  rule42 = rule [4][2];//(errPB,VinZ=DutyZ)
+  rule43 = rule [4][3];//(errPB,VinPS=DutyNS)
+  rule44 = rule [4][4];//(errPB,VinPB=DutyNB)
+}
+
+void deFuzzy(){
+  float N = 72.94;
+  float NS =78.43;
+  float Z = 82.75;
+  float PK = 88.63;
+  float P = 97.25;
+  ruleBase();
+  chargePwmVal0 =(rule00*P)+(rule01*PK)+(rule02*Z)+(rule03*NS)+(rule04*N)+
+  (rule10*P)+(rule11*PK)+(rule12*Z)+(rule13*NS)+(rule14*N)+
+  (rule20*P)+(rule21*PK)+(rule22*Z)+(rule23*NS)+(rule24*N)+
+  (rule30*P)+(rule31*PK)+(rule32*Z)+(rule33*NS)+(rule34*N)+
+  (rule40*P)+(rule41*PK)+(rule42*Z)+(rule43*NS)+(rule44*N);
+  float defuz=0;
+  int i,j;
+  for (i=0;i<=4;i++){
+    for (j=0;j<=4;j++){
+      defuz = defuz+rule[i][j];
+    }
+  }
+  chargePwmVal1=chargePwmVal0/defuz;//HasilAkhirDariFuzzy
+}
+
+void peoCurrent(){
+  // Calculate error
+  float currErr = currThreshold- abs(current2_buck2);
+  // Adjust PWM duty cycle based on error
+  if(voltage2_buck2<1.0){
+    dischargePwmVal=50;
+    }
+  else{
+    if (currErr>0.04) {
+    dischargePwmVal = dischargePwmVal - 1;
+    }
+    else if (currErr<-0.04) {
+      dischargePwmVal = dischargePwmVal + 1;
+    }
+    else if(-0.04<currErr<=0.04){
+      dischargePwmVal=dischargePwmVal;  
+    }
+    }
+}
+
+// function untuk sensor voltage
+float voltageBuck(int adsAddress, int adcPin) {
+  float voltageOutput = 0.0;
+  float result = 0.0;
+  if (adsAddress == 1) {
+    voltageOutput = ads1.readADC_SingleEnded(adcPin);
+  } else if (adsAddress == 2) {
+    voltageOutput = ads2.readADC_SingleEnded(adcPin);
+  }
+  result = voltageOutput *13.97/9046.0;
+  return result;
+}
+
+// function untuk sensor arus
+float currentBuck(int adsAddress, int adcPin) {
+  float currentOutput = 0.0;
+  float resultc = 0.0;
+  if (adsAddress == 1) {
+    currentOutput = ads1.readADC_SingleEnded(adcPin);
+  } else if (adsAddress == 2) {
+    currentOutput = ads2.readADC_SingleEnded(adcPin);
+  }
+  resultc = 0.001906*currentOutput- 24.95;
+  return resultc;
+}
+
+float stateOC() {
+  float stateOutputC = 0.0;
+  float socVal = 0.0;
+  float resultsoc=0.0;
+  stateOutputC = ads2.readADC_SingleEnded(2);
+  resultsoc = stateOutputC *14/9496.0;
+  socVal = (resultsoc-10.400) / 0.04;
+  return socVal;
+}
 
 void setup(void) {
   Serial.begin(115200);
-  ads1.begin(0x48);
-  ads2.begin(0x49); 
+  ads1.begin(ADS1X15_ADDRESS1);
+  ads2.begin(ADS1X15_ADDRESS2);
+
+  pinMode(chargeRel, OUTPUT);
+  pinMode(dischargeRel, OUTPUT);
+  
+  ledcSetup(0, pwmFrequency, 8);   // Konfigurasi kanal PWM pertama
+  ledcAttachPin(chargePin, 0);    // Menghubungkan pin pertama dengan kanal 0
+
+  ledcSetup(1, pwmFrequency, 8);   // Konfigurasi kanal PWM kedua
+  ledcAttachPin(dischargePin, 1);   // Menghubungkan pin kedua dengan kanal 1
 }
 
 void loop(void) {
-  voltage1_buck1=voltageBuck(1,0);
-  voltage2_buck1=voltageBuck(1,1);
-  current1_buck1=currentBuck(1,2);
-  current2_buck1=currentBuck(1,3);
-  Serial.print("Nilai Tegangan1 = ");
-  Serial.print(voltage1_buck1, 3); // Menampilkan 3 angka di belakang koma
-  Serial.println(" Volt");
- 
- delay (1000);
- 
-  voltage1_buck2=voltageBuck(2,0);
-  voltage2_buck2=voltageBuck(2,1);
-  current1_buck2=currentBuck(2,2);
-  current2_buck2=currentBuck(2,3);
-  Serial.print("Nilai Tegangan2 = ");
-  Serial.print(voltage1_buck2, 3); // Menampilkan 3 angka di belakang koma
-  Serial.println(" Volt");
+  soc = stateOC();
+  digitalWrite(chargeRel, HIGH);
+  digitalWrite(dischargeRel, LOW);
 
- delay (1000);
+  voltage1_buck1 = voltageBuck(1, 0);
+  voltage2_buck1 = ads1.readADC_SingleEnded(1)*14/9496.0;
+  current1_buck1 = currentBuck(1, 2);
+  current2_buck1 = currentBuck(1, 3);
+
+  voltage1_buck2 = voltageBuck(2, 0);
+  voltage2_buck2 = voltageBuck(2, 1);
+  voltagesoc= voltageBuck(2,2);
+  current2_buck2 = currentBuck(2, 3);
+  Error();
+  fuzzyErr();
+  fuzzyVin();
+  ruleBase();
+  deFuzzy();
+  cascescos=255-(chargePwmVal1*255/100);
+  if(voltage2_buck1>=14.500){
+    cascescos=cascescos+5;
+    ledcWrite( 0, cascescos);
+    }
+  else if(voltage2_buck1<=13.600){
+    cascescos=cascescos-3;
+    ledcWrite( 0, cascescos);
+    }
+  else{
+    ledcWrite( 0, cascescos);
+  }
+  peoCurrent();
+  ledcWrite(1, dischargePwmValue);
+
+
+  Serial.print(voltage1_buck1, 3);
+  Serial.print(", ");
+  Serial.print(voltage2_buck1, 3);
+  Serial.print(", ");
+  Serial.print(current1_buck1, 3);
+  Serial.print(", ");
+  Serial.print(current2_buck1, 3);
+  Serial.print(", ");
+  Serial.print(voltage1_buck2, 3);
+  Serial.print(", ");
+  Serial.print(voltage2_buck2, 3);
+  Serial.print(", ");
+  Serial.print(current2_buck2, 3);
+  Serial.print(", ");
+  Serial.print(soc, 2);
+  Serial.print(", ");
+  Serial.print(voltagesoc-0.400, 3);
+  Serial.print(", ");
+  Serial.print(chargePwmVal1, 3);
+  Serial.print("\n");
+
+  delay(500);
+  
 }
